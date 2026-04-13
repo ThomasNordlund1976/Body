@@ -24,6 +24,7 @@
 
 
 
+
 :root {
   --bg: #0a0c10;
   --bg2: #10131a;
@@ -187,6 +188,10 @@ input[type=number] { -moz-appearance: textfield; }
 .page-figure { width:100%; display:flex; justify-content:center; border-bottom:1px solid var(--border); background:#0a0c10; }
 .figure-wrap { width:100%; border-bottom:1px solid var(--border); display:flex; justify-content:center; background:#0a0c10; }
 
+
+.page-figure { width:100%; display:flex; justify-content:center; border-bottom:1px solid var(--border); background:#0a0c10; }
+.figure-wrap { width:100%; border-bottom:1px solid var(--border); display:flex; justify-content:center; background:#0a0c10; }
+
 </style>
 </head>
 </head>
@@ -194,6 +199,7 @@ input[type=number] { -moz-appearance: textfield; }
 <div id="app">
   <div id="v-log"    class="view"></div>
   <div id="v-trends" class="view hidden"></div>
+  <div id="v-stats" class="view hidden"></div>
 
   <nav>
     <button class="nav-btn active" id="nb-log" onclick="setTab('log')">
@@ -203,6 +209,10 @@ input[type=number] { -moz-appearance: textfield; }
     <button class="nav-btn" id="nb-trends" onclick="setTab('trends')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       Trends
+    </button>
+    <button class="nav-btn" id="nb-stats" onclick="setTab('stats')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Stats
     </button>
   </nav>
 
@@ -325,7 +335,7 @@ function g(id) { return document.getElementById(id); }
 
 function setTab(tab) {
   curTab = tab;
-  ["log","trends"].forEach(function(t) {
+  ["log","trends","stats"].forEach(function(t) {
     g("nb-"+t).classList.toggle("active", t===tab);
     var v = g("v-"+t);
     if (t===tab) v.classList.remove("hidden"); else v.classList.add("hidden");
@@ -333,6 +343,7 @@ function setTab(tab) {
   g("fab").style.display = tab==="log" ? "flex" : "none";
   if (tab==="log") renderLog();
   if (tab==="trends") renderTrends();
+  if (tab==="stats") renderStats();
 }
 
 function formatDate(iso) {
@@ -680,6 +691,154 @@ document.addEventListener("input", function(e) {
     updateFigureLabels();
   }
 });
+
+
+function renderStats() {
+  var data = dbLoad();
+  var el = g("v-stats");
+
+  el.innerHTML = '<div class="page-header"><h1>BODY <span>STATS</span></h1><p>Calculated from latest entry</p></div><div class="trends-content">';
+
+  if (!data.length) {
+    el.innerHTML += '<div class="empty-state"><p>No entries yet. Log measurements to see stats.</p></div></div>';
+    return;
+  }
+
+  data.sort(function(a,b){ return b.date.localeCompare(a.date); });
+  var d = data[0];
+  var prev = data.length > 1 ? data[1] : null;
+
+  var h   = d.height   ? d.height / 100 : null;  // metres
+  var w   = d.weight   ? d.weight       : null;   // kg
+  var bf  = d.bodyfat  ? d.bodyfat / 100: null;   // fraction
+  var wst = d.waist    ? d.waist / 100   : null;  // metres
+  var hip = d.hips     ? d.hips          : null;  // cm
+  var cst = d.chest    ? d.chest         : null;  // cm
+  var bic = d.bicep    ? d.bicep         : null;
+  var calf= d.calf     ? d.calf          : null;
+  var quad= d.quad     ? d.quad          : null;
+
+  var html = "";
+
+  // ---- BODY COMPOSITION ----
+  html += '<div class="section-title">Body Composition</div>';
+  html += '<div class="stats-grid">';
+
+  if (h && w) {
+    var bmi = w / (h * h);
+    var bmiCat = bmi < 18.5 ? "Underweight" : bmi < 25 ? "Normal" : bmi < 30 ? "Overweight" : "Obese";
+    var bmiColor = bmi < 18.5 ? "var(--accent)" : bmi < 25 ? "var(--green)" : bmi < 30 ? "var(--gold)" : "var(--red)";
+    html += statCard("BMI", bmi.toFixed(1), "", bmiCat, bmiColor);
+  }
+
+  if (w && bf) {
+    var fatKg  = (w * bf).toFixed(1);
+    var leanKg = (w * (1 - bf)).toFixed(1);
+    html += statCard("Fat Mass", fatKg, "kg", null, null);
+    html += statCard("Lean Mass", leanKg, "kg", null, "var(--green)");
+  }
+
+  if (h && w && bf) {
+    var lean = w * (1 - bf);
+    var ffmi = lean / (h * h);
+    var ffmiNote = ffmi < 18 ? "Below avg" : ffmi < 20 ? "Average" : ffmi < 22 ? "Above avg" : ffmi < 24 ? "Excellent" : ffmi < 26 ? "Superior" : "Elite";
+    var ffmiColor = ffmi < 18 ? "var(--text2)" : ffmi < 22 ? "var(--accent)" : ffmi < 25 ? "var(--green)" : "var(--gold)";
+    html += statCard("FFMI", ffmi.toFixed(1), "", ffmiNote, ffmiColor);
+  }
+
+  if (w && bf) {
+    var rfm = bf * 100;
+    var rfmNote = rfm < 8 ? "Essential" : rfm < 14 ? "Athletic" : rfm < 18 ? "Fitness" : rfm < 25 ? "Average" : "Above avg";
+    html += statCard("Body Fat", rfm.toFixed(1), "%", rfmNote, null);
+  }
+
+  html += "</div>";
+
+  // ---- PROPORTIONS ----
+  if (wst || hip || cst) {
+    html += '<div class="section-title" style="margin-top:16px">Proportions</div>';
+    html += '<div class="stats-grid">';
+
+    if (wst && hip) {
+      var whr = (wst * 100 / hip);
+      var whrNote = whr < 0.85 ? "Healthy" : whr < 0.9 ? "Moderate" : "High risk";
+      var whrColor = whr < 0.85 ? "var(--green)" : whr < 0.9 ? "var(--gold)" : "var(--red)";
+      html += statCard("Waist/Hip", whr.toFixed(2), "", whrNote, whrColor);
+    }
+
+    if (h && wst) {
+      var whi = (wst / h);
+      var whiNote = whi < 0.4 ? "Very low" : whi < 0.5 ? "Healthy" : whi < 0.6 ? "Elevated" : "High risk";
+      var whiColor = whi < 0.5 ? "var(--green)" : whi < 0.6 ? "var(--gold)" : "var(--red)";
+      html += statCard("Waist/Height", whi.toFixed(2), "", whiNote, whiColor);
+    }
+
+    if (cst && wst) {
+      var vtaper = (cst / (wst * 100));
+      html += statCard("V-Taper", vtaper.toFixed(2), "", "Chest / waist", "var(--accent)");
+    }
+
+    if (bic && calf) {
+      var sym = Math.abs(bic - calf);
+      var symNote = sym < 2 ? "Balanced" : sym < 4 ? "Minor diff" : "Notable diff";
+      html += statCard("Bicep/Calf", (bic/calf).toFixed(2), "", symNote, "var(--accent)");
+    }
+
+    if (quad && calf) {
+      html += statCard("Quad/Calf", (quad/calf).toFixed(2), "", "Lower sym.", "var(--accent)");
+    }
+
+    html += "</div>";
+  }
+
+  // ---- PROGRESS (if prev entry) ----
+  if (prev) {
+    html += '<div class="section-title" style="margin-top:16px">Since Last Entry</div>';
+    html += '<div class="stats-grid">';
+
+    if (d.weight && prev.weight) {
+      var wDiff = (d.weight - prev.weight).toFixed(1);
+      var wColor = wDiff < 0 ? "var(--green)" : wDiff > 0 ? "var(--red)" : "var(--text2)";
+      html += statCard("Weight", (wDiff > 0 ? "+" : "") + wDiff, "kg", "vs previous", wColor);
+    }
+
+    if (d.weight && prev.weight && d.bodyfat && prev.bodyfat) {
+      var prevLean = prev.weight * (1 - prev.bodyfat/100);
+      var curLean  = d.weight   * (1 - d.bodyfat/100);
+      var lDiff    = (curLean - prevLean).toFixed(1);
+      var lColor   = lDiff > 0 ? "var(--green)" : "var(--red)";
+      html += statCard("Lean mass", (lDiff > 0 ? "+" : "") + lDiff, "kg", "vs previous", lColor);
+
+      var prevFat  = prev.weight * (prev.bodyfat/100);
+      var curFat   = d.weight   * (d.bodyfat/100);
+      var fDiff    = (curFat - prevFat).toFixed(1);
+      var fColor   = fDiff < 0 ? "var(--green)" : "var(--red)";
+      html += statCard("Fat mass", (fDiff > 0 ? "+" : "") + fDiff, "kg", "vs previous", fColor);
+    }
+
+    if (d.waist && prev.waist) {
+      var wstDiff = (d.waist - prev.waist).toFixed(1);
+      var wstColor = wstDiff < 0 ? "var(--green)" : "var(--red)";
+      html += statCard("Waist", (wstDiff > 0 ? "+" : "") + wstDiff, "cm", "vs previous", wstColor);
+    }
+
+    html += "</div>";
+  }
+
+  html += "</div>";
+  el.innerHTML += html;
+}
+
+function statCard(label, value, unit, note, color) {
+  var valStyle = color ? 'color:' + color : 'color:var(--text)';
+  return '<div class="stat-card">' +
+    '<div class="stat-label">' + label + '</div>' +
+    '<div class="stat-val" style="' + valStyle + '">' + value +
+      (unit ? '<span class="stat-unit">' + unit + '</span>' : '') +
+    '</div>' +
+    (note ? '<div class="stat-change" style="color:var(--text3)">' + note + '</div>' : '') +
+    '</div>';
+}
 
 setTab("log");
 
