@@ -142,6 +142,14 @@ input[type=number] { -moz-appearance: textfield; }
 .stat-change { font-size: 11px; font-family: 'DM Mono', monospace; margin-top: 2px; color: #5a8aaa; }
 
 ::-webkit-scrollbar { width: 0; background: transparent; }
+.confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 400; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; padding: 24px; }
+.confirm-overlay.open { opacity: 1; pointer-events: all; }
+.confirm-box { background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--radius); padding: 24px 20px; width: 100%; max-width: 320px; }
+.confirm-title { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 0.04em; color: var(--text); margin-bottom: 6px; }
+.confirm-sub { font-size: 13px; color: var(--text2); margin-bottom: 20px; }
+.confirm-actions { display: flex; gap: 10px; }
+.confirm-actions .btn { flex: 1; padding: 12px; }
+.btn-danger { background: var(--red); color: #fff; }
 
 .figure-wrap { width: 100%; background: var(--bg3); border-bottom: 1px solid var(--border); display: flex; justify-content: center; align-items: center; padding: 0; overflow: visible; }
 .figure-wrap svg { width: 100%; max-width: 360px; height: auto; display: block; }
@@ -419,10 +427,32 @@ function renderLog() {
 }
 
 function deleteEntry(date) {
-  var data = dbLoad().filter(function(e){ return e.date !== date; });
-  dbSave(data);
-  renderLog();
-  if (curTab === "trends") renderTrends();
+  showConfirm(
+    "Delete entry for " + formatDate(date) + "?",
+    "This cannot be undone.",
+    function() {
+      var data = dbLoad().filter(function(e){ return e.date !== date; });
+      dbSave(data);
+      renderLog();
+      if (curTab === "trends") renderTrends();
+      if (curTab === "stats") renderStats();
+    }
+  );
+}
+
+function showConfirm(title, subtitle, onConfirm) {
+  var el = document.getElementById("confirm-overlay");
+  document.getElementById("confirm-title").textContent = title;
+  document.getElementById("confirm-sub").textContent = subtitle;
+  document.getElementById("confirm-ok").onclick = function() {
+    hideConfirm();
+    onConfirm();
+  };
+  el.classList.add("open");
+}
+
+function hideConfirm() {
+  document.getElementById("confirm-overlay").classList.remove("open");
 }
 
 function openForm() {
@@ -845,5 +875,17 @@ function statCard(label, value, unit, note, color) {
 setTab("log");
 
 </script>
+
+<div id="confirm-overlay" class="confirm-overlay" onclick="if(event.target===this)hideConfirm()">
+  <div class="confirm-box">
+    <div class="confirm-title" id="confirm-title"></div>
+    <div class="confirm-sub" id="confirm-sub"></div>
+    <div class="confirm-actions">
+      <button class="btn btn-ghost" onclick="hideConfirm()">Cancel</button>
+      <button class="btn btn-danger" id="confirm-ok">Delete</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
